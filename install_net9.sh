@@ -30,7 +30,7 @@ download_and_unzip() {
   echo "--------------------------------------------------------------------------------------------" 1>&2
   echo "Downloading ${zip_name}..." 1>&2
   if wget "$url" -q && sudo unzip "$zip_name" -d "$dest_dir" > /dev/null 2>&1 && rm -f "$zip_name"; then
-    echo "${GREEN}${zip_name} installed in ${dest_dir}.${NC}" 1>&2
+    echo "${GREEN}${zip_name} installed.${NC}" 1>&2
   else
     echo "${RED}ERROR: Couldn't install ${zip_name}.${NC}" 1>&2
   fi
