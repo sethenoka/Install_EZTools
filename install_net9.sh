@@ -5,7 +5,7 @@ SCRIPT_NAME="$(basename "$0")"
 
 # Defaults track Eric Zimmerman's current net9 Linux download layout.
 DOTNET_CHANNEL="9.0"
-DOTNET_KIND="sdk"
+DOTNET_KIND="runtime"
 INSTALL_ROOT="/opt/zimmermantools/net9"
 PROFILE_FILE="${HOME}/.bashrc"
 UPDATE_PROFILE=true
@@ -25,10 +25,25 @@ TMP_DIR=""
 # Tool manifest schema:
 # key|display name|zip URL|extract destination under INSTALL_ROOT|DLL path under destination|optional sha256
 TOOL_MANIFEST=(
+  "amcacheparser|AmcacheParser|https://download.ericzimmermanstools.com/net9/AmcacheParser.zip|AmcacheParser|AmcacheParser.dll|"
+  "appcompatcacheparser|AppCompatCacheParser|https://download.ericzimmermanstools.com/net9/AppCompatCacheParser.zip|AppCompatCacheParser|AppCompatCacheParser.dll|"
+  "bstrings|bstrings|https://download.ericzimmermanstools.com/net9/bstrings.zip|bstrings|bstrings.dll|"
+  "evtxecmd|EvtxECmd|https://download.ericzimmermanstools.com/net9/EvtxECmd.zip|.|EvtxeCmd/EvtxECmd.dll|"
+  "iisgeolocate|iisGeolocate|https://download.ericzimmermanstools.com/net9/iisGeolocate.zip|.|iisGeolocate/iisGeolocate.dll|"
+  "jlecmd|JLECmd|https://download.ericzimmermanstools.com/net9/JLECmd.zip|JLECmd|JLECmd.dll|"
+  "lecmd|LECmd|https://download.ericzimmermanstools.com/net9/LECmd.zip|LECmd|LECmd.dll|"
   "mftecmd|MFTECmd|https://download.ericzimmermanstools.com/net9/MFTECmd.zip|MFTEcmd|MFTECmd.dll|"
   "pecmd|PECmd|https://download.ericzimmermanstools.com/net9/PECmd.zip|PECmd|PECmd.dll|"
+  "rbcmd|RBCmd|https://download.ericzimmermanstools.com/net9/RBCmd.zip|RBCmd|RBCmd.dll|"
+  "recentfilecacheparser|RecentFileCacheParser|https://download.ericzimmermanstools.com/net9/RecentFileCacheParser.zip|RecentFileCacheParser|RecentFileCacheParser.dll|"
   "recmd|RECmd|https://download.ericzimmermanstools.com/net9/RECmd.zip|.|RECmd/RECmd.dll|"
-  "evtxecmd|EvtxECmd|https://download.ericzimmermanstools.com/net9/EvtxECmd.zip|.|EvtxeCmd/EvtxECmd.dll|"
+  "rla|RLA|https://download.ericzimmermanstools.com/net9/rla.zip|rla|rla.dll|"
+  "sbecmd|SBECmd|https://download.ericzimmermanstools.com/net9/SBECmd.zip|SBECmd|SBECmd.dll|"
+  "sqlecmd|SQLECmd|https://download.ericzimmermanstools.com/net9/SQLECmd.zip|.|SQLECmd/SQLECmd.dll|"
+  "srumecmd|SrumECmd|https://download.ericzimmermanstools.com/net9/SrumECmd.zip|SrumECmd|SrumECmd.dll|"
+  "sumecmd|SumECmd|https://download.ericzimmermanstools.com/net9/SumECmd.zip|SumECmd|SumECmd.dll|"
+  "vscmount|VSCMount|https://download.ericzimmermanstools.com/net9/VSCMount.zip|VSCMount|VSCMount.dll|"
+  "wxtcmd|WxTCmd|https://download.ericzimmermanstools.com/net9/WxTCmd.zip|WxTCmd|WxTCmd.dll|"
 )
 
 usage() {
@@ -38,20 +53,21 @@ Usage: ${SCRIPT_NAME} [options]
 Install Eric Zimmerman's .NET 9 CLI tools on Debian/Ubuntu systems.
 
 Options:
-  --tools LIST              Comma-separated tools to install: mftecmd,pecmd,recmd,evtxecmd,all
+  -t, --tools LIST          Comma-separated tools to install, or all
                             Default: all
-  --dest DIR                Root directory for EZ Tools. Default: ${INSTALL_ROOT}
-  --dotnet-channel CHANNEL  .NET channel passed to dotnet-install.sh. Default: ${DOTNET_CHANNEL}
-  --dotnet-kind KIND        Install "sdk" or "runtime". Default: ${DOTNET_KIND}
-  --runtime-only            Alias for --dotnet-kind runtime
-  --sdk                     Alias for --dotnet-kind sdk
-  --profile FILE            Shell profile to update. Default: ${PROFILE_FILE}
-  --no-profile              Do not update a shell profile
-  --wrapper-dir DIR         Directory for command wrappers. Default: ${WRAPPER_DIR}
-  --force                   Reinstall .NET/tools even if the requested files are present
-  --yes                     Do not prompt for confirmation
-  --dry-run                 Print planned actions without changing the system
-  --verbose                 Show command output where practical
+  -d, --dest DIR            Root directory for EZ Tools. Default: ${INSTALL_ROOT}
+  -c, --dotnet-channel CHANNEL
+                            .NET channel passed to dotnet-install.sh. Default: ${DOTNET_CHANNEL}
+  -k, --dotnet-kind KIND    Install "sdk" or "runtime". Default: ${DOTNET_KIND}
+  -r, --runtime-only        Alias for --dotnet-kind runtime
+  -s, --sdk                 Alias for --dotnet-kind sdk
+  -p, --profile FILE        Shell profile to update. Default: ${PROFILE_FILE}
+  -n, --no-profile          Do not update a shell profile
+  -w, --wrapper-dir DIR     Directory for command wrappers. Default: ${WRAPPER_DIR}
+  -f, --force               Reinstall .NET/tools even if the requested files are present
+  -y, --yes                 Do not prompt for confirmation
+  -D, --dry-run             Print planned actions without changing the system
+  -v, --verbose             Show command output where practical
   --skip-dotnet-signature-check
                             Download dotnet-install.sh without GPG signature verification
   --allow-root              Allow running the whole script as root
@@ -116,61 +132,61 @@ require_option_value() {
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --tools)
+      -t|--tools)
         require_option_value "$1" "$#" "${2:-}"
         SELECTED_TOOLS="$2"
         shift 2
         ;;
-      --dest)
+      -d|--dest)
         require_option_value "$1" "$#" "${2:-}"
         INSTALL_ROOT="$2"
         shift 2
         ;;
-      --dotnet-channel)
+      -c|--dotnet-channel)
         require_option_value "$1" "$#" "${2:-}"
         DOTNET_CHANNEL="$2"
         shift 2
         ;;
-      --dotnet-kind)
+      -k|--dotnet-kind)
         require_option_value "$1" "$#" "${2:-}"
         DOTNET_KIND="$2"
         shift 2
         ;;
-      --runtime-only)
+      -r|--runtime-only)
         DOTNET_KIND="runtime"
         shift
         ;;
-      --sdk)
+      -s|--sdk)
         DOTNET_KIND="sdk"
         shift
         ;;
-      --profile)
+      -p|--profile)
         require_option_value "$1" "$#" "${2:-}"
         PROFILE_FILE="$2"
         shift 2
         ;;
-      --no-profile)
+      -n|--no-profile)
         UPDATE_PROFILE=false
         shift
         ;;
-      --wrapper-dir)
+      -w|--wrapper-dir)
         require_option_value "$1" "$#" "${2:-}"
         WRAPPER_DIR="$2"
         shift 2
         ;;
-      --force)
+      -f|--force)
         FORCE=true
         shift
         ;;
-      --yes)
+      -y|--yes)
         ASSUME_YES=true
         shift
         ;;
-      --dry-run)
+      -D|--dry-run)
         DRY_RUN=true
         shift
         ;;
-      --verbose)
+      -v|--verbose)
         VERBOSE=true
         shift
         ;;
@@ -258,9 +274,10 @@ confirm() {
     die "Confirmation is required in non-interactive mode. Re-run with --yes to proceed."
   fi
 
-  read -r -p "${prompt} [y/N] " reply
+  read -r -p "${prompt} [Y/n] " reply
   case "${reply}" in
-    y|Y|yes|YES) return 0 ;;
+    ""|y|Y|yes|YES) return 0 ;;
+    n|N|no|NO) die "Installation cancelled by user." ;;
     *) die "Installation cancelled by user." ;;
   esac
 }
@@ -467,8 +484,21 @@ validate_tool_selection() {
       fi
     done
 
-    [[ "${found}" == true ]] || die "Unknown tool '${requested_tool}'. Valid values: mftecmd,pecmd,recmd,evtxecmd,all"
+    [[ "${found}" == true ]] || die "Unknown tool '${requested_tool}'. Valid values: $(valid_tool_keys)"
   done
+}
+
+valid_tool_keys() {
+  local keys=(all)
+  local item key _name _url _extract_subdir _dll_path _expected_sha256
+
+  for item in "${TOOL_MANIFEST[@]}"; do
+    IFS='|' read -r key _name _url _extract_subdir _dll_path _expected_sha256 <<< "${item}"
+    keys+=("${key}")
+  done
+
+  local IFS=,
+  printf '%s\n' "${keys[*]}"
 }
 
 selected_tool_labels() {
@@ -483,14 +513,14 @@ selected_tool_labels() {
   done
 
   if [[ "${#labels[@]}" -eq 0 ]]; then
-    die "No tools selected. Valid values: mftecmd,pecmd,recmd,evtxecmd,all"
+    die "No tools selected. Valid values: $(valid_tool_keys)"
   fi
 
   printf '%s\n' "${labels[*]}"
 }
 
-# MFTECmd and PECmd unzip directly into their target directories, while RECmd
-# and EvtxECmd include top-level directories inside the archives.
+# Some ZIPs unzip flat into their target directory, while others include a
+# top-level directory inside the archive.
 absolute_tool_path() {
   local extract_subdir="$1"
   local dll_path="$2"
@@ -652,6 +682,7 @@ update_profile() {
 validate_installation() {
   local failures=0
   local item key name _url extract_subdir dll_path _expected_sha256 tool_dll
+  local wrapper_path validation_log
 
   if [[ "${DRY_RUN}" == true ]]; then
     log "[dry-run] Skip post-install validation"
@@ -678,13 +709,20 @@ validate_installation() {
       continue
     fi
 
-    if ! timeout 20 "${DOTNET_BIN}" "${tool_dll}" --help >/dev/null 2>&1; then
-      warn "${name} did not pass --help validation."
+    wrapper_path="${WRAPPER_DIR}/${key}"
+    if [[ ! -x "${wrapper_path}" ]]; then
+      warn "${key} wrapper missing from ${WRAPPER_DIR}"
       failures=$((failures + 1))
+      continue
     fi
 
-    if [[ ! -x "${WRAPPER_DIR}/${key}" ]]; then
-      warn "${key} wrapper missing from ${WRAPPER_DIR}"
+    validation_log="$(mktemp)"
+    if timeout 20 env DOTNET_BIN="${DOTNET_BIN}" "${wrapper_path}" --help >"${validation_log}" 2>&1; then
+      rm -f "${validation_log}"
+    else
+      warn "${name} wrapper did not pass --help validation: ${wrapper_path}"
+      sed -n '1,8p' "${validation_log}" >&2
+      rm -f "${validation_log}"
       failures=$((failures + 1))
     fi
   done

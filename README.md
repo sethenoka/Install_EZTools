@@ -18,9 +18,9 @@ Default behavior:
 
 - EZ Tools: `net9`
 - .NET channel: `9.0`
-- .NET install kind: full SDK
+- .NET install kind: runtime
 
-If testing shows the runtime is enough, use `--runtime-only`.
+Use `--sdk` if you need the full SDK instead of the runtime.
 
 ## Usage
 
@@ -29,7 +29,7 @@ chmod +x install_net9.sh
 ./install_net9.sh
 ```
 
-The script prints an installation plan and asks for approval before making changes. It also asks again before installing missing prerequisites, .NET, and each selected tool unless `--yes` is used.
+The script prints an installation plan and asks for approval before making changes. Confirmation prompts default to yes (`Y/n`). It also asks again before installing missing prerequisites, .NET, and each selected tool unless `--yes` or `-y` is used.
 
 Common examples:
 
@@ -38,16 +38,16 @@ Common examples:
 ./install_net9.sh --dry-run
 
 # Install without prompts
-./install_net9.sh --yes
+./install_net9.sh -y
 
 # Install only selected tools
-./install_net9.sh --tools mftecmd,pecmd
+./install_net9.sh -t mftecmd,pecmd
 
-# Test whether the .NET runtime is sufficient
-./install_net9.sh --runtime-only
+# Install the full .NET SDK instead of the runtime
+./install_net9.sh --sdk
 
 # Try a different .NET channel
-./install_net9.sh --dotnet-channel 10.0
+./install_net9.sh -c 10.0
 
 # Reinstall even when files are already present
 ./install_net9.sh --force
@@ -59,21 +59,47 @@ Run `./install_net9.sh --help` for the full option list.
 
 | Option | Purpose |
 | --- | --- |
-| `--tools LIST` | Install `all` tools or a comma-separated subset: `mftecmd`, `pecmd`, `recmd`, `evtxecmd`. |
-| `--dest DIR` | Change the EZ Tools install root. |
-| `--dotnet-channel CHANNEL` | Change the channel passed to Microsoft's installer, for example `9.0` or `10.0`. |
-| `--dotnet-kind sdk\|runtime` | Choose full SDK or runtime-only install. |
-| `--runtime-only` | Shortcut for `--dotnet-kind runtime`. |
-| `--sdk` | Shortcut for `--dotnet-kind sdk`. |
-| `--profile FILE` | Update a specific shell profile file. |
-| `--no-profile` | Skip profile updates. |
-| `--wrapper-dir DIR` | Change where command wrappers are installed. |
-| `--force` | Reinstall even when the expected files are already present. |
-| `--yes` | Accept prompts for unattended runs. |
-| `--dry-run` | Show the planned commands without changing the system. |
-| `--verbose` | Show command output instead of suppressing successful command noise. |
+| `-t`, `--tools LIST` | Install `all` tools or a comma-separated subset. |
+| `-d`, `--dest DIR` | Change the EZ Tools install root. |
+| `-c`, `--dotnet-channel CHANNEL` | Change the channel passed to Microsoft's installer, for example `9.0` or `10.0`. |
+| `-k`, `--dotnet-kind sdk\|runtime` | Choose full SDK or runtime-only install. |
+| `-r`, `--runtime-only` | Shortcut for `--dotnet-kind runtime`. |
+| `-s`, `--sdk` | Shortcut for `--dotnet-kind sdk`. |
+| `-p`, `--profile FILE` | Update a specific shell profile file. |
+| `-n`, `--no-profile` | Skip profile updates. |
+| `-w`, `--wrapper-dir DIR` | Change where command wrappers are installed. |
+| `-f`, `--force` | Reinstall even when the expected files are already present. |
+| `-y`, `--yes` | Accept prompts for unattended runs. |
+| `-D`, `--dry-run` | Show the planned commands without changing the system. |
+| `-v`, `--verbose` | Show command output instead of suppressing successful command noise. |
 | `--skip-dotnet-signature-check` | Skip GPG verification for `dotnet-install.sh`. |
 | `--allow-root` | Permit running the whole script as root. Normally avoid this. |
+
+## Included Tools
+
+The `all` selection installs the net9 CLI/tooling set published on Eric Zimmerman's tools page:
+
+- `amcacheparser`
+- `appcompatcacheparser`
+- `bstrings`
+- `evtxecmd`
+- `iisgeolocate`
+- `jlecmd`
+- `lecmd`
+- `mftecmd`
+- `pecmd`
+- `rbcmd`
+- `recentfilecacheparser`
+- `recmd`
+- `rla`
+- `sbecmd`
+- `sqlecmd`
+- `srumecmd`
+- `sumecmd`
+- `vscmount`
+- `wxtcmd`
+
+GUI/Desktop tools such as Timeline Explorer, Registry Explorer, and EZViewer are not installed by this Linux command-wrapper script.
 
 ## Installed Commands
 
@@ -91,10 +117,7 @@ Wrappers are installed under:
 
 Default wrappers:
 
-- `mftecmd`
-- `pecmd`
-- `recmd`
-- `evtxecmd`
+The wrapper command names match the tool keys listed above.
 
 The script updates `~/.bashrc` with a managed block for `DOTNET_ROOT` and `PATH`. Re-running the script replaces that block instead of appending duplicate aliases.
 
@@ -108,7 +131,7 @@ The installer is designed to be re-runnable:
 - Uses retries and timeouts for downloads
 - Verifies Microsoft's `dotnet-install.sh` GPG signature by default
 - Validates downloaded ZIP integrity with `unzip -t`
-- Runs post-install checks for `.NET`, selected tool DLLs, wrappers, and tool `--help` execution
+- Runs post-install checks for `.NET`, selected tool DLLs, wrappers, and wrapper command `--help` execution
 
 Eric Zimmerman does not publish checksums in the simple direct-download flow used here, so EZ Tool ZIP authenticity still relies on HTTPS and upstream availability. The manifest includes a checksum field so hashes can be added later if upstream publishes them.
 
@@ -123,7 +146,7 @@ At a high level, `install_net9.sh` runs these phases:
 5. Download and extract selected EZ Tools from the manifest
 6. Create command wrappers
 7. Update the shell profile with a managed block, unless disabled
-8. Validate `.NET`, wrappers, DLL presence, and tool startup
+8. Validate `.NET`, wrappers, DLL presence, and tool startup through the installed wrapper commands
 
 The script has inline comments around the parts that are easiest to break later: archive layout handling, managed profile updates, signature verification, and the runtime/SDK detection path.
 
