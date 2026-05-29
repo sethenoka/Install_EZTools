@@ -135,8 +135,6 @@ The installer is designed to be re-runnable:
 - Validates downloaded ZIP integrity with `unzip -t`
 - Runs post-install checks for `.NET`, selected tool DLLs, wrappers, wrapper command `--help` execution, and known runtime/platform failure text
 
-Eric Zimmerman does not publish checksums in the simple direct-download flow used here, so EZ Tool ZIP authenticity still relies on HTTPS and upstream availability. The manifest includes a checksum field so hashes can be added later if upstream publishes them.
-
 ## Installer Flow
 
 At a high level, `install_net9.sh` runs these phases:
@@ -151,6 +149,15 @@ At a high level, `install_net9.sh` runs these phases:
 8. Validate `.NET`, wrappers, DLL presence, and tool startup through the installed wrapper commands. Validation fails if a tool prints known runtime/platform failure text, even if it exits with status `0`.
 
 The script has inline comments around the parts that are easiest to break later: archive layout handling, managed profile updates, signature verification, and the runtime/SDK detection path.
+
+## Project Layout
+
+- `install_net9.sh`: small entrypoint that sources helpers and runs the install flow
+- `lib/config.sh`: defaults and EZ Tools manifest
+- `lib/logging.sh`: logging, status, and cleanup helpers
+- `lib/cli.sh`: usage text, argument parsing, confirmations, and plan output
+- `lib/system.sh`: platform checks, prerequisite install, .NET install, profile updates, and command execution
+- `lib/tools.sh`: tool selection, archive extraction, wrappers, and post-install validation
 
 ## Why Not Just Use Get-ZimmermanTools?
 
