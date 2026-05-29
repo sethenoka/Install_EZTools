@@ -74,6 +74,8 @@ Options:
   -h, --help                Show this help
 
 Notes:
+  Boolean short flags can be bundled, e.g. -yvf is equivalent to -y -v -f.
+  Short options that take values, such as -t LIST and -d DIR, cannot be bundled.
   This installer currently supports Debian/Ubuntu systems with apt-get.
   The EZ Tools download set is currently the upstream net9 flavor. The .NET
   channel is configurable for testing, but the tools themselves still depend on
@@ -109,6 +111,17 @@ warn() {
   colorize yellow "WARNING: $*"
 }
 
+completed_or_planned() {
+  local completed_message="$1"
+  local planned_message="$2"
+
+  if [[ "${DRY_RUN}" == true ]]; then
+    success "${planned_message}"
+  else
+    success "${completed_message}"
+  fi
+}
+
 die() {
   colorize red "ERROR: $*"
   exit 1
@@ -129,9 +142,38 @@ require_option_value() {
   [[ "${argc}" -ge 2 && -n "${value}" ]] || die "${option} requires a value"
 }
 
+apply_short_flag() {
+  local flag="$1"
+
+  case "${flag}" in
+    r) DOTNET_KIND="runtime" ;;
+    s) DOTNET_KIND="sdk" ;;
+    n) UPDATE_PROFILE=false ;;
+    f) FORCE=true ;;
+    y) ASSUME_YES=true ;;
+    D) DRY_RUN=true ;;
+    v) VERBOSE=true ;;
+    h)
+      usage
+      exit 0
+      ;;
+    *) die "Unknown short option: -${flag}" ;;
+  esac
+}
+
 parse_args() {
+  local bundled_flags
+
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -[!-]?*)
+        bundled_flags="${1#-}"
+        while [[ -n "${bundled_flags}" ]]; do
+          apply_short_flag "${bundled_flags:0:1}"
+          bundled_flags="${bundled_flags:1}"
+        done
+        shift
+        ;;
       -t|--tools)
         require_option_value "$1" "$#" "${2:-}"
         SELECTED_TOOLS="$2"
@@ -357,7 +399,7 @@ install_prereqs() {
   confirm "Install missing prerequisite packages?"
   run_sudo_cmd "Updating apt package index" apt-get update
   run_sudo_cmd "Installing prerequisites" env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
-  success "Prerequisites installed."
+  completed_or_planned "Prerequisites installed." "Prerequisites would be installed."
 }
 
 download_file() {
@@ -438,7 +480,9 @@ install_dotnet() {
   fi
 
   run_cmd "Installing .NET ${DOTNET_KIND}" bash "${script_path}" "${install_args[@]}"
-  success ".NET ${DOTNET_KIND} channel ${DOTNET_CHANNEL} installed."
+  completed_or_planned \
+    ".NET ${DOTNET_KIND} channel ${DOTNET_CHANNEL} installed." \
+    ".NET ${DOTNET_KIND} channel ${DOTNET_CHANNEL} would be installed."
 }
 
 normalize_tool_selection() {
@@ -590,7 +634,7 @@ install_tool() {
     die "${name} install completed, but expected DLL was not found at ${tool_dll}"
   fi
 
-  success "${name} installed."
+  completed_or_planned "${name} files installed." "${name} files would be installed."
 }
 
 # Install only selected manifest entries.
@@ -643,7 +687,9 @@ install_wrappers() {
     fi
   done
 
-  success "Command wrappers installed in ${WRAPPER_DIR}."
+  completed_or_planned \
+    "Command wrappers installed in ${WRAPPER_DIR}." \
+    "Command wrappers would be installed in ${WRAPPER_DIR}."
 }
 
 # Replace the managed block on every run instead of appending duplicate exports.
@@ -678,11 +724,31 @@ update_profile() {
   success "Updated ${PROFILE_FILE}."
 }
 
+# Some tools print platform/runtime failures but still exit cleanly, so validation
+# checks both exit status and output content.
+validation_output_has_failure() {
+  local output_file="$1"
+
+  grep -Eiq \
+    'Non-Windows platforms not supported|not supported due to|unsupported platform|Unhandled exception|A fatal error occurred|You must install or update \.NET|No frameworks were found' \
+    "${output_file}"
+}
+
+print_validation_error() {
+  local name="$1"
+  local wrapper_path="$2"
+  local output_file="$3"
+
+  warn "${name} wrapper did not pass --help validation: ${wrapper_path}"
+  sed -n '1,8p' "${output_file}" >&2
+}
+
 # Fail the installer if the resulting commands are present but cannot start.
 validate_installation() {
   local failures=0
   local item key name _url extract_subdir dll_path _expected_sha256 tool_dll
   local wrapper_path validation_log
+  local validation_status
 
   if [[ "${DRY_RUN}" == true ]]; then
     log "[dry-run] Skip post-install validation"
@@ -717,14 +783,17 @@ validate_installation() {
     fi
 
     validation_log="$(mktemp)"
-    if timeout 20 env DOTNET_BIN="${DOTNET_BIN}" "${wrapper_path}" --help >"${validation_log}" 2>&1; then
-      rm -f "${validation_log}"
-    else
-      warn "${name} wrapper did not pass --help validation: ${wrapper_path}"
-      sed -n '1,8p' "${validation_log}" >&2
+    validation_status=0
+    timeout 20 env DOTNET_BIN="${DOTNET_BIN}" "${wrapper_path}" --help >"${validation_log}" 2>&1 || validation_status=$?
+
+    if [[ "${validation_status}" -ne 0 ]] || validation_output_has_failure "${validation_log}"; then
+      print_validation_error "${name}" "${wrapper_path}" "${validation_log}"
       rm -f "${validation_log}"
       failures=$((failures + 1))
+      continue
     fi
+
+    rm -f "${validation_log}"
   done
 
   [[ "${failures}" -eq 0 ]] || die "Post-install validation failed with ${failures} issue(s)."
@@ -765,7 +834,11 @@ main() {
   install_wrappers
   update_profile
   validate_installation
-  success "Installation complete. Open a new shell or source ${PROFILE_FILE} before using the wrappers."
+  if [[ "${DRY_RUN}" == true ]]; then
+    success "Dry run complete. No changes were made."
+  else
+    success "Installation complete. Open a new shell or run: source ${PROFILE_FILE}"
+  fi
 }
 
 main "$@"

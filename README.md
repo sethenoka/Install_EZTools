@@ -75,6 +75,8 @@ Run `./install_net9.sh --help` for the full option list.
 | `--skip-dotnet-signature-check` | Skip GPG verification for `dotnet-install.sh`. |
 | `--allow-root` | Permit running the whole script as root. Normally avoid this. |
 
+Boolean short flags can be bundled. For example, `-yvf` is equivalent to `-y -v -f`. Short options that take values, such as `-t mftecmd` or `-d /opt/tools`, cannot be bundled.
+
 ## Included Tools
 
 The `all` selection installs the net9 CLI/tooling set published on Eric Zimmerman's tools page:
@@ -131,7 +133,7 @@ The installer is designed to be re-runnable:
 - Uses retries and timeouts for downloads
 - Verifies Microsoft's `dotnet-install.sh` GPG signature by default
 - Validates downloaded ZIP integrity with `unzip -t`
-- Runs post-install checks for `.NET`, selected tool DLLs, wrappers, and wrapper command `--help` execution
+- Runs post-install checks for `.NET`, selected tool DLLs, wrappers, wrapper command `--help` execution, and known runtime/platform failure text
 
 Eric Zimmerman does not publish checksums in the simple direct-download flow used here, so EZ Tool ZIP authenticity still relies on HTTPS and upstream availability. The manifest includes a checksum field so hashes can be added later if upstream publishes them.
 
@@ -146,7 +148,7 @@ At a high level, `install_net9.sh` runs these phases:
 5. Download and extract selected EZ Tools from the manifest
 6. Create command wrappers
 7. Update the shell profile with a managed block, unless disabled
-8. Validate `.NET`, wrappers, DLL presence, and tool startup through the installed wrapper commands
+8. Validate `.NET`, wrappers, DLL presence, and tool startup through the installed wrapper commands. Validation fails if a tool prints known runtime/platform failure text, even if it exits with status `0`.
 
 The script has inline comments around the parts that are easiest to break later: archive layout handling, managed profile updates, signature verification, and the runtime/SDK detection path.
 
