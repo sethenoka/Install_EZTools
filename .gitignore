@@ -1,0 +1,22 @@
+# Local installer artifacts
+dotnet-install.sh
+dotnet-install.sig
+dotnet-install.asc
+*.zip
+*.tmp
+*.log
+
+# Local test/install sandboxes
+.dotnet/
+zimmermantools/
+tmp/
+temp/
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/

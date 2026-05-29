@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  shell:
+    name: Shell checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install shell tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck
+
+      - name: Bash syntax
+        run: bash -n install_net9.sh
+
+      - name: ShellCheck
+        run: shellcheck install_net9.sh
+
+      - name: Installer dry run
+        run: bash install_net9.sh --dry-run --yes --tools mftecmd --runtime-only --no-profile
